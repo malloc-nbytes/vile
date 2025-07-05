@@ -33,6 +33,8 @@ typedef struct {
 } program;
 
 program create_program(lexer *lexer);
+void appendstr(const char *s, char_array *ar);
 void dump_program(const program *p);
+char *gen_data_from_program(const program *p);
 
 #endif // GRAMMAR_H_INCLUDED

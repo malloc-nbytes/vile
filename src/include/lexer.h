@@ -27,6 +27,7 @@ typedef enum {
         TT_FORWARDSLASH,
         TT_GT,
         TT_LT,
+        TT_EQ,
 } token_type;
 
 typedef struct token {

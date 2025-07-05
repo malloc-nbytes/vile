@@ -86,12 +86,64 @@ dump_program(const program *p)
                         dump_fun(p->stmts.data[i]);
                 } break;
                 default: {
-                        fprintf(stderr, "unknown stmt type %d\n",
+                        fprintf(stderr, "dump_program(): unknown stmt type %d\n",
                                 (int)p->stmts.data[i]->ty);
                         exit(1);
                 } break;
                 }
         }
+}
+
+void
+appendstr(const char *s, char_array *ar)
+{
+        for (size_t i = 0; s[i]; ++i) {
+                dyn_array_append(*ar, s[i]);
+        }
+}
+
+static void
+gen_data_from_fun(const function *f,
+                  char_array     *ar)
+{
+        appendstr("extern ", ar);
+        appendstr(f->rettype, ar);
+        dyn_array_append(*ar, ' ');
+        appendstr(f->name, ar);
+        dyn_array_append(*ar, '(');
+        for (size_t i = 0; i < f->params.len; ++i) {
+                appendstr(f->params.data[i]->type, ar);
+                dyn_array_append(*ar, ' ');
+                appendstr(f->params.data[i]->name, ar);
+                if (i != f->params.len-1) {
+                        appendstr(", ", ar);
+                }
+        }
+        dyn_array_append(*ar, ')');
+        dyn_array_append(*ar, ';');
+}
+
+char *
+gen_data_from_program(const program *p)
+{
+        char_array ar = dyn_array_empty(char_array);
+
+        for (size_t i = 0; i < p->stmts.len; ++i) {
+                switch (p->stmts.data[i]->ty) {
+                case STMT_TYPE_FUNCTION: {
+                        gen_data_from_fun((function*)p->stmts.data[i], &ar);
+                } break;
+                default: {
+                        fprintf(stderr, "gen_data_from_program(): unknown stmt type %d\n",
+                                (int)p->stmts.data[i]->ty);
+                        exit(1);
+                } break;
+                }
+        }
+
+        dyn_array_append(ar, 0);
+
+        return ar.data;
 }
 
 program

@@ -7,4 +7,5 @@ $"ar rcs libtest.a test.o";
 
 let files = "main.c lexer.c smap.c grammar.c";
 
-$f"cc -Iinclude -o main {files} -L. -ltest";
+# $f"cc -Iinclude -o main {files} -L. -ltest";
+$f"cc -Iinclude -o main {files} -lforge";

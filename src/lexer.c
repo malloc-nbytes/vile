@@ -40,6 +40,7 @@ initops(void)
         static token_type forwardslash = TT_FORWARDSLASH;
         static token_type gt = TT_GT;
         static token_type lt = TT_LT;
+        static token_type eq = TT_EQ;
         smap_insert(&g_ops, "(", &lparen);
         smap_insert(&g_ops, ")", &rparen);
         smap_insert(&g_ops, "*", &asertisk);
@@ -58,6 +59,7 @@ initops(void)
         smap_insert(&g_ops, "/", &forwardslash);
         smap_insert(&g_ops, "<", &lt);
         smap_insert(&g_ops, ">", &gt);
+        smap_insert(&g_ops, "=", &eq);
 }
 
 static token *
@@ -179,6 +181,12 @@ lexer_dump(const lexer *lexer)
         }
 }
 
+int
+isstr(int c)
+{
+        return (char)c != '"';
+}
+
 lexer
 lex_file(char *src)
 {
@@ -195,7 +203,7 @@ lex_file(char *src)
                 if (c == ' ' || c == '\n' || c == '\t') {
                         ++i; // Skip whitespace
                 } else if (c == '"') {
-                        size_t len = consume_while(src + i + 1, isprint); // Consume until closing quote
+                        size_t len = consume_while(src + i + 1, isstr); // Consume until closing quote
                         if (src[i + len + 1] == '"') {
                                 lexer_append(&lexer, token_alloc(src + i + 1, len, TT_STRLIT));
                                 i += len + 2; // Skip quotes and content
