@@ -6,6 +6,7 @@
 
 typedef enum {
         STMT_TYPE_FUNCTION = 0,
+        STMT_TYPE_BLOCK,
 } stmt_type;
 
 typedef struct {
@@ -13,6 +14,11 @@ typedef struct {
 } stmt;
 
 DYN_ARRAY_TYPE(stmt *, stmt_ptr_array);
+
+typedef struct {
+        stmt base;
+        stmt_ptr_array stmts;
+} stmt_block;
 
 typedef struct {
         char *type;
@@ -26,6 +32,7 @@ typedef struct {
         char *rettype;
         char *name;
         parameter_ptr_array params;
+        stmt_block *block;
 } function;
 
 typedef struct {
