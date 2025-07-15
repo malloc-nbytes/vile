@@ -7,14 +7,14 @@
 
 #include "lexer.h"
 #include "kwds.h"
-#include "smap.h"
+#include "forge/smap.h"
 
-static smap g_ops;
+static forge_smap g_ops;
 
 static void
 initops(void)
 {
-        g_ops = smap_create();
+        g_ops = forge_smap_create();
         static token_type eof = TT_EOF;
         static token_type identifier = TT_IDENTIFIER;
         static token_type strlit = TT_STRLIT;
@@ -41,25 +41,25 @@ initops(void)
         static token_type gt = TT_GT;
         static token_type lt = TT_LT;
         static token_type eq = TT_EQ;
-        smap_insert(&g_ops, "(", &lparen);
-        smap_insert(&g_ops, ")", &rparen);
-        smap_insert(&g_ops, "*", &asertisk);
-        smap_insert(&g_ops, ";", &semicolon);
-        smap_insert(&g_ops, ".", &period);
-        smap_insert(&g_ops, ",", &comma);
-        smap_insert(&g_ops, "#", &hash);
-        smap_insert(&g_ops, "&", &ampersand);
-        smap_insert(&g_ops, "[", &lsqr);
-        smap_insert(&g_ops, "]", &rsqr);
-        smap_insert(&g_ops, "{", &lcurly);
-        smap_insert(&g_ops, "}", &rcurly);
-        smap_insert(&g_ops, "!", &bang);
-        smap_insert(&g_ops, "+", &plus);
-        smap_insert(&g_ops, "-", &minus);
-        smap_insert(&g_ops, "/", &forwardslash);
-        smap_insert(&g_ops, "<", &lt);
-        smap_insert(&g_ops, ">", &gt);
-        smap_insert(&g_ops, "=", &eq);
+        forge_smap_insert(&g_ops, "(", &lparen);
+        forge_smap_insert(&g_ops, ")", &rparen);
+        forge_smap_insert(&g_ops, "*", &asertisk);
+        forge_smap_insert(&g_ops, ";", &semicolon);
+        forge_smap_insert(&g_ops, ".", &period);
+        forge_smap_insert(&g_ops, ",", &comma);
+        forge_smap_insert(&g_ops, "#", &hash);
+        forge_smap_insert(&g_ops, "&", &ampersand);
+        forge_smap_insert(&g_ops, "[", &lsqr);
+        forge_smap_insert(&g_ops, "]", &rsqr);
+        forge_smap_insert(&g_ops, "{", &lcurly);
+        forge_smap_insert(&g_ops, "}", &rcurly);
+        forge_smap_insert(&g_ops, "!", &bang);
+        forge_smap_insert(&g_ops, "+", &plus);
+        forge_smap_insert(&g_ops, "-", &minus);
+        forge_smap_insert(&g_ops, "/", &forwardslash);
+        forge_smap_insert(&g_ops, "<", &lt);
+        forge_smap_insert(&g_ops, ">", &gt);
+        forge_smap_insert(&g_ops, "=", &eq);
 }
 
 static token *
@@ -163,8 +163,10 @@ token_type_to_str(token_type ty)
         case TT_FORWARDSLASH: return "TT_FORWARDSLASH";
         case TT_GT: return "TT_GT";
         case TT_LT: return "TT_LT";
+        case TT_EQ: return "TT_EQ";
         default: {
-                assert(0 && "token_type_to_str(): unhandled token");
+                fprintf(stderr, "token_type_to_str(): unhandled token: %d\n", (int)ty);
+                exit(1);
         } break;
         }
         return NULL; // unreachable
@@ -185,6 +187,20 @@ int
 isstr(int c)
 {
         return (char)c != '"';
+}
+
+token *
+lexer_next(lexer *lexer)
+{
+        token *t = lexer->hd;
+        lexer->hd = lexer->hd->n;
+        return t;
+}
+
+void
+lexer_discard(lexer *lexer)
+{
+        lexer->hd = lexer->hd->n;
 }
 
 lexer
@@ -236,7 +252,7 @@ lex_file(char *src)
                         i += len;
                 } else {
                         char op[2] = {c, '\0'};
-                        token_type *ty = smap_get(&g_ops, op);
+                        token_type *ty = forge_smap_get(&g_ops, op);
                         if (ty) {
                                 lexer_append(&lexer, token_alloc(src + i, 1, *ty));
                                 i += 1;

@@ -44,5 +44,7 @@ typedef struct {
 char *token_type_to_str(token_type ty);
 lexer lex_file(char *src);
 void lexer_dump(const lexer *lexer);
+void lexer_discard(lexer *lexer);
+token *lexer_next(lexer *lexer);
 
 #endif // LEXER_H_INCLUDED
