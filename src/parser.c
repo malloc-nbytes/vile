@@ -58,8 +58,16 @@ parse_line(lexer *lexer)
                 return NULL;
         }
 
+        // Name of the function/identifier
         forge_str_append(&res, ' ');
-        forge_str_concat(&res, lexer_next(lexer)->lx);
+        char *identifier = lexer_next(lexer)->lx;
+        if (!strcmp(identifier, "main")) {
+                while (LP(lexer)->ty != TT_LCURLY) lexer_discard(lexer);
+                consume_function(lexer);
+                forge_str_destroy(&res);
+                return NULL;
+        }
+        forge_str_concat(&res, identifier);
 
         // Function
         if (LP(lexer)->ty == TT_LPAREN) {
@@ -87,6 +95,20 @@ str_array
 parse(lexer *lexer)
 {
         str_array ar = dyn_array_empty(str_array);
+
+        char *headers[] = {
+                "stdio.h",
+                "stdlib.h",
+                "stdbool.h",
+                "string.h",
+                "unistd.h",
+                "stdint.h",
+                "stddef.h",
+        };
+
+        for (size_t i = 0; i < sizeof(headers)/sizeof(*headers); ++i) {
+                dyn_array_append(ar, forge_str_builder("#include<", headers[i], ">", NULL));
+        }
 
         while (LP(lexer)) {
                 char *line = parse_line(lexer);
