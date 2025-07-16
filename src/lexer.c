@@ -7,7 +7,7 @@
 
 #include "lexer.h"
 #include "kwds.h"
-#include "forge/smap.h"
+#include <forge/smap.h>
 
 static forge_smap g_ops;
 

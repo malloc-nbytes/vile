@@ -2,12 +2,21 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "forge/array.h"
-#include "forge/io.h"
-#include "forge/cmd.h"
+#include <forge/array.h>
+#include <forge/io.h>
+#include <forge/cmd.h>
+#include <forge/rdln.h>
+#include <forge/ctrl.h>
 
 #include "lexer.h"
 #include "parser.h"
+
+#define HELP  ":h"
+#define HELP2 ":help"
+#define QUIT  ":q"
+#define QUIT2 ":quit"
+#define RUN   ":r"
+#define RUN2  ":run"
 
 #define TMP_FILEPATH ".vile.c"
 
@@ -45,9 +54,18 @@ run_file(const str_array *lines,
         dyn_array_free(final_lines);
 }
 
+void
+usage(void)
+{
+        printf("Usage: ViLe <file.c>\n");
+        exit(0);
+}
+
 int
 main(int argc, char **argv)
 {
+        if (argc <= 1) { usage(); }
+
         size_t N;
         char *src = forge_io_read_file_to_cstr("test.c");
         lexer lexer = lex_file(src);
@@ -57,32 +75,18 @@ main(int argc, char **argv)
         dyn_array_append(lines, strdup("int main(void) {"));
 
         while (1) {
-                char buf[256] = {0};
-                printf("[ViLe]: ");
-                if (fgets(buf, sizeof(buf), stdin) == NULL) {
-                        // Handle EOF or error
-                        break;
-                }
+                char *buf = forge_rdln("[ViLe]: ");
 
-                // Remove trailing newline
-                size_t len = strlen(buf);
-                if (len > 0 && buf[len - 1] == '\n') {
-                        buf[len - 1] = '\0';
-                        len--;
-                } else if (len == sizeof(buf) - 1) {
-                        // Input was truncated; clear input stream
-                        int c;
-                        while ((c = getchar()) != '\n' && c != EOF);
-                }
-
-                if (!strcmp(buf, ":eof")) {
+                if (!strcmp(buf, RUN) || !strcmp(buf, RUN2)) {
                         dyn_array_append(user_lines, strdup("}"));
                         run_file(&lines, &user_lines);
-                } else if (!strcmp(buf, ":q") || !strcmp(buf, ":quit")) {
+                } else if (!strcmp(buf, QUIT) || !strcmp(buf, QUIT2)) {
                         break;
                 } else {
                         dyn_array_append(user_lines, strdup(buf));
                 }
+
+                free(buf);
         }
 
         cmd("rm ./ViLe_bin_output");

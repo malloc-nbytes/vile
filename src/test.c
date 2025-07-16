@@ -1,6 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+typedef struct {
+        int x;
+        int y;
+} Point;
+
 int sum(int a, int b) {
         return a+b;
 }
@@ -11,3 +16,9 @@ void dump(void) {
         }
 }
 
+Point create_point(void) {
+        return (Point) {
+                .x = 1,
+                .y = 2,
+        };
+}

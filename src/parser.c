@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <string.h>
 #include <stdio.h>
 
@@ -19,14 +20,17 @@ isty(token *t)
                     || !strcmp("const", t->lx)
                     || (t->lx[0] == '*' && !t->lx[1])) {
                         return 1;
+                } else if (t->ty == TT_IDENTIFIER && t->n && t->n->ty == TT_IDENTIFIER) {
+                        return 1;
                 }
         }
         return 0;
 }
 
-void
-consume_function(lexer *lexer)
+char *
+consume_function_body(lexer *lexer)
 {
+        forge_str content = forge_str_from("{");
         lexer_discard(lexer);
         int stack = 1;
         while (lexer->hd && stack != 0) {
@@ -36,14 +40,34 @@ consume_function(lexer *lexer)
                 else if (LP(lexer)->ty == TT_LCURLY) {
                         ++stack;
                 }
+                forge_str_concat(&content, lexer->hd->lx);
+                forge_str_append(&content, ' ');
                 lexer_discard(lexer);
         }
+        return content.data;
 }
 
 char *
 parse_line(lexer *lexer)
 {
         forge_str res = forge_str_create();
+
+        if (LP(lexer)->ty == TT_KEYWORD) {
+                const char *s = lexer->hd->lx;
+                if (!strcmp(s, KW_TYPEDEF) && !strcmp(lexer->hd->n->lx, KW_STRUCT)) {
+                        lexer_discard(lexer);
+                        lexer_discard(lexer);
+                        forge_str_concat(&res, "typedef struct");
+                        forge_str_concat(&res, consume_function_body(lexer));
+                        forge_str_concat(&res, lexer_next(lexer)->lx);
+                        forge_str_append(&res, ';');
+                        return res.data;
+                } else if (!strcmp(s, KW_STRUCT)) {
+                        assert(0 && "unimplemented");
+                } else {
+                        assert(0 && "unimplemented");
+                }
+        }
 
         // Gather type
         while (LP(lexer) && isty(lexer->hd)) {
@@ -63,7 +87,7 @@ parse_line(lexer *lexer)
         char *identifier = lexer_next(lexer)->lx;
         if (!strcmp(identifier, "main")) {
                 while (LP(lexer)->ty != TT_LCURLY) lexer_discard(lexer);
-                consume_function(lexer);
+                free(consume_function_body(lexer));
                 forge_str_destroy(&res);
                 return NULL;
         }
@@ -81,13 +105,12 @@ parse_line(lexer *lexer)
                 lexer_discard(lexer);
         }
 
-        char *extrn = forge_str_builder("extern ", res.data, ";", NULL);
-        forge_str_destroy(&res);
-
         if (LP(lexer)->ty == TT_LCURLY) {
-                consume_function(lexer);
+                free(consume_function_body(lexer));
         }
 
+        char *extrn = forge_str_builder("extern ", res.data, ";", NULL);
+        forge_str_destroy(&res);
         return extrn;
 }
 

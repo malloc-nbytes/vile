@@ -5,6 +5,10 @@ module Build
 import "std/system.rl"; as sys
 import "std/datatypes/list.rl";
 
+let install, uninstall = (false, false);
+try { install = argv()[1] == "install"; }
+try { uninstall = argv()[1] == "uninstall"; }
+
 # $"cc -c test.c -o test.o";
 # $"ar rcs libtest.a test.o";
 
@@ -13,4 +17,7 @@ let files = List::to_str(
         .filter(|f| { f != "./test.c" && f != "./.vile.c"; })
 );
 
-$f"cc -ggdb -Iinclude -o main {files} -lforge";
+$f"cc -ggdb -Iinclude -o ViLe {files} -lforge";
+
+if install   { $"sudo cp ./ViLe /usr/local/bin"; }
+if uninstall { $"sudo rm /usr/local/bin/ViLe"; }
