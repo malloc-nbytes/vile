@@ -1,8 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+// this is some
+// test comments
+
 typedef struct {
         int x;
+        // this should not show up
         int y;
 } Point;
 

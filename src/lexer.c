@@ -203,6 +203,12 @@ lexer_discard(lexer *lexer)
         lexer->hd = lexer->hd->n;
 }
 
+int
+not_newline(int c)
+{
+        return (char)c != '\n';
+}
+
 lexer
 lex_file(char *src)
 {
@@ -218,6 +224,20 @@ lex_file(char *src)
                 char c = src[i];
                 if (c == ' ' || c == '\n' || c == '\t') {
                         ++i; // Skip whitespace
+                } else if (c == '/' && src[i+1] && src[i+1] == '/') {
+                        i += consume_while(src+i, not_newline); // Single-line comment
+                } else if (c == '/' && src[i+1] && src[i+1] == '*') {
+                        // Multiline comment
+                        size_t j = i + 2;
+                        while (src[j] && !(src[j] == '*' && src[j+1] && src[j+1] == '/')) {
+                                j++;
+                        }
+                        if (src[j] == '*' && src[j+1] == '/') {
+                                i = j + 2; // Skip past '*/'
+                        } else {
+                                fprintf(stderr, "Error: Unterminated multiline comment\n");
+                                break;
+                        }
                 } else if (c == '"') {
                         size_t len = consume_while(src + i + 1, isstr); // Consume until closing quote
                         if (src[i + len + 1] == '"') {
@@ -257,14 +277,12 @@ lex_file(char *src)
                                 lexer_append(&lexer, token_alloc(src + i, 1, *ty));
                                 i += 1;
                         } else {
-                                // Handle unrecognized character
                                 fprintf(stderr, "Error: Unrecognized character '%c'\n", c);
                                 i += 1;
                         }
                 }
         }
 
-        // Append EOF token
         lexer_append(&lexer, token_alloc("EOF", 3, TT_EOF));
         return lexer;
 }
