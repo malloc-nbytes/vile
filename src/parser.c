@@ -1,142 +1,91 @@
-#include <assert.h>
 #include <string.h>
-#include <stdio.h>
 
 #include <forge/array.h>
+#include <forge/lexer.h>
 #include <forge/str.h>
+#include <forge/err.h>
 
 #include "parser.h"
-#include "kwds.h"
-#include "lexer.h"
 
-#define LP(l) l->hd && l->hd
-
-static int
-isty(token *t)
-{
-        const char *tys[] = TYPES;
-        for (size_t i = 0; i < sizeof(tys)/sizeof(*tys); ++i) {
-                if (!strcmp(tys[i], t->lx)
-                    || !strcmp("const", t->lx)
-                    || (t->lx[0] == '*' && !t->lx[1])) {
-                        return 1;
-                } else if (t->ty == TT_IDENTIFIER && t->n && t->n->ty == TT_IDENTIFIER) {
-                        return 1;
-                }
-        }
-        return 0;
-}
+#define LP(l) forge_lexer_peek(l, 0) && forge_lexer_peek(l, 0)
+#define LPN(l, n) forge_lexer_peek(l, n) && forge_lexer_peek(l, n)
 
 char *
-consume_function_body(lexer *lexer)
+parse_function(forge_lexer *lexer)
 {
-        forge_str content = forge_str_from("{");
-        lexer_discard(lexer);
-        int stack = 1;
-        while (lexer->hd && stack != 0) {
-                if (LP(lexer)->ty == TT_RCURLY) {
-                        --stack;
-                }
-                else if (LP(lexer)->ty == TT_LCURLY) {
-                        ++stack;
-                }
-                forge_str_concat(&content, lexer->hd->lx);
-                forge_str_append(&content, ' ');
-                lexer_discard(lexer);
-        }
-        return content.data;
-}
-
-char *
-parse_line(lexer *lexer)
-{
-        forge_str res = forge_str_create();
-
-        if (LP(lexer)->ty == TT_KEYWORD) {
-                const char *s = lexer->hd->lx;
-                if (!strcmp(s, KW_TYPEDEF) && !strcmp(lexer->hd->n->lx, KW_STRUCT)) {
-                        lexer_discard(lexer);
-                        lexer_discard(lexer);
-                        forge_str_concat(&res, "typedef struct");
-                        forge_str_concat(&res, consume_function_body(lexer));
-                        forge_str_concat(&res, lexer_next(lexer)->lx);
-                        forge_str_append(&res, ';');
-                        return res.data;
-                } else if (!strcmp(s, KW_STRUCT)) {
-                        assert(0 && "unimplemented");
-                } else {
-                        assert(0 && "unimplemented");
-                }
-        }
-
-        // Gather type
-        while (LP(lexer) && isty(lexer->hd)) {
-                forge_str_concat(&res, lexer->hd->lx);
-                forge_str_append(&res, ' ');
-                lexer_discard(lexer);
-        }
-
-        // No type, not a declaration, early return.
-        if (res.len == 0) {
-                lexer_discard(lexer);
+        if (forge_lexer_peek(lexer, 0)->ty == FORGE_TOKEN_TYPE_KEYWORD
+            && !strcmp(forge_lexer_peek(lexer, 0)->lx, "static")) {
                 return NULL;
         }
 
-        // Name of the function/identifier
-        forge_str_append(&res, ' ');
-        char *identifier = lexer_next(lexer)->lx;
-        if (!strcmp(identifier, "main")) {
-                while (LP(lexer)->ty != TT_LCURLY) lexer_discard(lexer);
-                free(consume_function_body(lexer));
-                forge_str_destroy(&res);
+        forge_str line = forge_str_from("extern ");
+
+        while (1) {
+                forge_token *t = forge_lexer_next(lexer);
+                if (!t) break;
+                if (t->ty == FORGE_TOKEN_TYPE_SEMICOLON) break;
+                if (t->ty == FORGE_TOKEN_TYPE_LEFT_CURLY) break;
+                forge_str_append(&line, ' ');
+                forge_str_concat(&line, t->lx);
+        }
+
+        forge_str_append(&line, ';');
+        return line.data;
+}
+
+// TODO: support includes with quotes
+char *
+parse_include(forge_lexer *lexer)
+{
+        if (LPN(lexer, 1)->ty == FORGE_TOKEN_TYPE_IDENTIFIER && !strcmp(forge_lexer_peek(lexer, 1)->lx, "main")) {
                 return NULL;
         }
-        forge_str_concat(&res, identifier);
 
-        // Function
-        if (LP(lexer)->ty == TT_LPAREN) {
-                forge_str_append(&res, '(');
-                lexer_discard(lexer);
-                while (LP(lexer)->ty != TT_RPAREN) {
-                        forge_str_concat(&res, lexer_next(lexer)->lx);
-                        forge_str_append(&res, ' ');
-                }
-                forge_str_append(&res, ')');
-                lexer_discard(lexer);
+        forge_str line = forge_str_create();
+
+        while (1) {
+                forge_token *t = forge_lexer_next(lexer);
+                if (!t) break;
+                if (t->ty == FORGE_TOKEN_TYPE_GREATERTHAN) break;
+                forge_str_concat(&line, t->lx);
         }
 
-        if (LP(lexer)->ty == TT_LCURLY) {
-                free(consume_function_body(lexer));
+        forge_str_append(&line, '>');
+
+        return line.data;
+}
+
+char *
+parse_stmt(forge_lexer *lexer)
+{
+        if (forge_lexer_peek(lexer, 2) &&
+            (forge_lexer_peek(lexer, 0)->ty == FORGE_TOKEN_TYPE_KEYWORD
+             || forge_lexer_peek(lexer, 0)->ty == FORGE_TOKEN_TYPE_IDENTIFIER)
+            && (forge_lexer_peek(lexer, 1)->ty == FORGE_TOKEN_TYPE_KEYWORD
+                || forge_lexer_peek(lexer, 1)->ty == FORGE_TOKEN_TYPE_IDENTIFIER)
+            && (forge_lexer_peek(lexer, 2)->ty == FORGE_TOKEN_TYPE_LEFT_PARENTHESIS)) {
+                return parse_function(lexer);
         }
 
-        char *extrn = forge_str_builder("extern ", res.data, ";", NULL);
-        forge_str_destroy(&res);
-        return extrn;
+        if (LP(lexer)->ty == FORGE_TOKEN_TYPE_HASH
+                   && LPN(lexer, 1)->ty == FORGE_TOKEN_TYPE_IDENTIFIER
+                   && !strcmp(forge_lexer_peek(lexer, 1)->lx, "include")) {
+                return parse_include(lexer);
+        }
+
+        forge_lexer_discard(lexer);
+        return NULL;
 }
 
 str_array
-parse(lexer *lexer)
+parse(forge_lexer *lexer)
 {
         str_array ar = dyn_array_empty(str_array);
 
-        char *headers[] = {
-                "stdio.h",
-                "stdlib.h",
-                "stdbool.h",
-                "string.h",
-                "unistd.h",
-                "stdint.h",
-                "stddef.h",
-        };
-
-        for (size_t i = 0; i < sizeof(headers)/sizeof(*headers); ++i) {
-                dyn_array_append(ar, forge_str_builder("#include<", headers[i], ">", NULL));
-        }
-
-        while (LP(lexer)) {
-                char *line = parse_line(lexer);
+        while (LP(lexer)->ty != FORGE_TOKEN_TYPE_EOF) {
+                char *line = parse_stmt(lexer);
                 if (line) {
-                        printf("line: %s\n", line);
+                        //printf("line: %s\n", line);
                         dyn_array_append(ar, line);
                 }
         }

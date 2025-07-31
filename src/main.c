@@ -4,15 +4,15 @@
 #include <string.h>
 #include <stdint.h>
 
-#include <forge/array.h>
 #include <forge/io.h>
-#include <forge/cmd.h>
-#include <forge/rdln.h>
 #include <forge/arg.h>
+#include <forge/arg.h>
+#include <forge/lexer.h>
 #include <forge/str.h>
-#include <forge/arg.h>
+#include <forge/rdln.h>
+#include <forge/cmd.h>
+#include <forge/err.h>
 
-#include "lexer.h"
 #include "parser.h"
 
 #define HELP  ":h"
@@ -34,13 +34,43 @@ struct {
         .fp = NULL,
 };
 
+static const char *g_kwds[] = FORGE_LEXER_C_KEYWORDS;
+
+forge_lexer
+lex_file(const char *fp)
+{
+        assert(fp);
+
+        char *src = forge_io_read_file_to_cstr(fp);
+
+        forge_lexer lexer = forge_lexer_create((forge_lexer_config){
+                .fp = fp,
+                .src = src,
+                .comment = {
+                        .single      = "//",
+                        .multi_start = "/*",
+                        .multi_end   = "*/",
+                },
+                .kwds = (const char **)g_kwds,
+                .bits = FORGE_LEXER_C_OPERATORS,
+        });
+
+        if (forge_lexer_has_err(&lexer)) {
+                printf("%s:%zu:%zu: %s\n", lexer.fp, lexer.err.r, lexer.err.c, lexer.err.msg);
+                exit(1);
+        }
+
+        free(src);
+        return lexer;
+}
+
 void
-run_file(const str_array *lines,
-         str_array       *user_lines)
+run(str_array *input_lines,
+    str_array *user_lines)
 {
         str_array final_lines = dyn_array_empty(str_array);
-        for (size_t i = 0; i < lines->len; ++i) {
-                dyn_array_append(final_lines, lines->data[i]);
+        for (size_t i = 0; i < input_lines->len; ++i) {
+                dyn_array_append(final_lines, input_lines->data[i]);
         }
         for (size_t i = 0; i < user_lines->len; ++i) {
                 dyn_array_append(final_lines, user_lines->data[i]);
@@ -49,18 +79,20 @@ run_file(const str_array *lines,
         forge_io_create_file(TMP_FILEPATH, 1);
         forge_io_write_lines(TMP_FILEPATH, (const char **)final_lines.data, final_lines.len);
 
-        char *cc_cmd = forge_str_builder("cc -c ", g_config.fp, " -o /tmp/", g_config.fp, ".o", NULL);
+        const char *basename = forge_io_basename(g_config.fp);
+
+        char *cc_cmd = forge_str_builder("cc -c ", g_config.fp, " -o /tmp/", basename, ".o", NULL);
         CMD(cc_cmd, {
                 free(cc_cmd);
                 goto bad;
         });
-        char *ar_cmd = forge_str_builder("ar rcs /tmp/lib", g_config.fp, ".a /tmp/", g_config.fp, ".o", NULL);
+        char *ar_cmd = forge_str_builder("ar rcs /tmp/lib", basename, ".a /tmp/", basename, ".o", NULL);
         CMD(ar_cmd, {
                 free(cc_cmd);
                 free(ar_cmd);
                 goto bad;
         });
-        char *cc2_cmd = forge_str_builder("cc " TMP_FILEPATH " -o /tmp/ViLe_bin_output -L/tmp/ -l", g_config.fp, NULL);
+        char *cc2_cmd = forge_str_builder("cc " TMP_FILEPATH " -o /tmp/ViLe_bin_output -L/tmp/ -l", basename, NULL);
         CMD(cc2_cmd, {
                 free(cc2_cmd);
                 free(cc_cmd);
@@ -79,72 +111,77 @@ run_file(const str_array *lines,
         printf("aborting...\n");
 
  cleanup:
-        for (size_t i = 0; i < user_lines->len; ++i) {
-                free(user_lines->data[i]);
-        }
-        dyn_array_clear(*user_lines);
+
         dyn_array_free(final_lines);
 }
 
 void
-usage(void)
+handle_args(forge_arg *it)
 {
-        printf("Usage: ViLe <file.c>\n");
-        exit(0);
-}
-
-char *
-clean_input_file(const char *s)
-{
-        if (s[0] == '.' && s[1] == '/') {
-                s += 2;
+        while (it) {
+                if (!it->h) {
+                        g_config.fp = forge_io_resolve_absolute_path(it->s);
+                }
+                it = it->n;
         }
-        return strdup(s);
+
+        if (!g_config.fp) {
+                forge_err("a filepath is needed");
+        }
 }
 
 int
 main(int argc, char **argv)
 {
-        forge_arg *arg_hd = forge_arg_alloc(argc, argv, 1);
-        forge_arg *arg = arg_hd;
-        while (arg) {
-                if (!arg->h) {
-                        if (g_config.fp) { assert(0 && "duplicate files"); }
-                        g_config.fp = clean_input_file(arg->s);
-                }
-                arg = arg->n;
+        forge_arg *arghd = forge_arg_alloc(argc, argv, 1);
+        handle_args(arghd);
+        forge_arg_free(arghd);
+
+        forge_lexer lexer = lex_file(g_config.fp);
+
+        str_array input_lines = parse(&lexer);
+
+        printf("Available Interface:\n");
+        for (size_t i = 0; i < input_lines.len; ++i) {
+                forge_str line = forge_str_from(input_lines.data[i]);
+                char *s = forge_str_contains_substr(&line, " ", 0);
+                if (s) printf("%s\n", s);
         }
-        forge_arg_free(arg_hd);
-
-        if (!g_config.fp) {
-                usage();
-        }
-
-        char *src = forge_io_read_file_to_cstr(g_config.fp);
-        lexer lexer = lex_file(src);
-
-        str_array lines = parse(&lexer);
-        str_array user_lines = dyn_array_empty(str_array);
-        dyn_array_append(lines, strdup("int main(void) {"));
 
         while (1) {
-                char *buf = forge_rdln("[ViLe]: ");
+                str_array user_lines = dyn_array_empty(str_array);
+                dyn_array_append(user_lines, strdup("int main(void) {"));
 
-                if (!strcmp(buf, RUN) || !strcmp(buf, RUN2)) {
-                        dyn_array_append(user_lines, strdup("}"));
-                        run_file(&lines, &user_lines);
-                } else if (!strcmp(buf, QUIT) || !strcmp(buf, QUIT2)) {
-                        break;
-                } else {
-                        dyn_array_append(user_lines, strdup(buf));
+                while (1) {
+                        char *input = forge_rdln("ViLe: ");
+                        if (!strcmp(input, ":r") || !strcmp(input, ":R")) {
+                                free(input);
+                                break;
+                        } else if (!strcmp(input, ":i")) {
+                                free(input);
+                                input = forge_rdln("#include ");
+                                dyn_array_append(input_lines, forge_str_builder("#include ", input, NULL));
+                                free(input);
+                        } else if (!strcmp(input, ":q")) {
+                                free(input);
+                                goto done;
+                        } else if (input) {
+                                dyn_array_append(user_lines, input);
+                        }
                 }
 
-                free(buf);
+                dyn_array_append(user_lines, strdup("}"));
+
+                run(&input_lines, &user_lines);
+
+                for (size_t i = 0; i < user_lines.len; ++i) {
+                        free(user_lines.data[i]);
+                }
+                dyn_array_free(user_lines);
         }
 
-        for (size_t i = 0; i < lines.len; ++i) {
-                free(lines.data[i]);
-        }
-        dyn_array_free(lines);
+ done:
+        forge_lexer_destroy(&lexer);
+
         return 0;
 }
