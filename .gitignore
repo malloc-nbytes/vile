@@ -1,3 +1,5 @@
 src/libtest.a
 src/test.o
 src/main
+src/ViLe
+src/vile

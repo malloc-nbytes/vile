@@ -17,7 +17,7 @@ let files = List::to_str(
         .filter(|f| { f != "./test.c" && f != "./.vile.c"; })
 );
 
-$f"cc -ggdb -Iinclude -o ViLe {files} -lforge";
+$f"cc -ggdb -Iinclude -o vile {files} -lforge";
 
-if install   { $"sudo cp ./ViLe /usr/local/bin"; }
-if uninstall { $"sudo rm /usr/local/bin/ViLe"; }
+if install   { $"sudo cp ./vile /usr/local/bin"; }
+if uninstall { $"sudo rm /usr/local/bin/vile"; }
