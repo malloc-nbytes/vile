@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -7,9 +8,9 @@
 #include <forge/io.h>
 #include <forge/cmd.h>
 #include <forge/rdln.h>
-#include <forge/ctrl.h>
 #include <forge/arg.h>
 #include <forge/str.h>
+#include <forge/arg.h>
 
 #include "lexer.h"
 #include "parser.h"
@@ -92,17 +93,33 @@ usage(void)
         exit(0);
 }
 
+char *
+clean_input_file(const char *s)
+{
+        if (s[0] == '.' && s[1] == '/') {
+                s += 2;
+        }
+        return strdup(s);
+}
+
 int
 main(int argc, char **argv)
 {
-        if (argc <= 1) { usage(); }
-        if (argv[1][0] == '.' && argv[1][1] == '/') {
-                g_config.fp = &argv[1][2];
-        } else {
-                g_config.fp = argv[1];
+        forge_arg *arg_hd = forge_arg_alloc(argc, argv, 1);
+        forge_arg *arg = arg_hd;
+        while (arg) {
+                if (!arg->h) {
+                        if (g_config.fp) { assert(0 && "duplicate files"); }
+                        g_config.fp = clean_input_file(arg->s);
+                }
+                arg = arg->n;
+        }
+        forge_arg_free(arg_hd);
+
+        if (!g_config.fp) {
+                usage();
         }
 
-        size_t N;
         char *src = forge_io_read_file_to_cstr(g_config.fp);
         lexer lexer = lex_file(src);
 
