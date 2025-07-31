@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <string.h>
 
 #include <forge/array.h>
@@ -10,11 +11,31 @@
 #define LP(l) forge_lexer_peek(l, 0) && forge_lexer_peek(l, 0)
 #define LPN(l, n) forge_lexer_peek(l, n) && forge_lexer_peek(l, n)
 
+void
+skipblk(forge_lexer *lexer)
+{
+        assert(forge_lexer_expect(lexer, FORGE_TOKEN_TYPE_LEFT_CURLY));
+        int stack = 1;
+        while (stack) {
+                forge_token *t = forge_lexer_peek(lexer, 0);
+                if (t->ty == FORGE_TOKEN_TYPE_LEFT_CURLY) ++stack;
+                if (t->ty == FORGE_TOKEN_TYPE_RIGHT_CURLY) --stack;
+                forge_lexer_discard(lexer);
+        }
+}
+
 char *
 parse_function(forge_lexer *lexer)
 {
         if (forge_lexer_peek(lexer, 0)->ty == FORGE_TOKEN_TYPE_KEYWORD
             && !strcmp(forge_lexer_peek(lexer, 0)->lx, "static")) {
+                return NULL;
+        }
+
+        if (!strcmp(forge_lexer_peek(lexer, 1)->lx, "main")) {
+                while (LP(lexer)->ty != FORGE_TOKEN_TYPE_LEFT_CURLY)
+                        forge_lexer_discard(lexer);
+                skipblk(lexer);
                 return NULL;
         }
 
