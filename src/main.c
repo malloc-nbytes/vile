@@ -8,6 +8,7 @@
 #include <forge/arg.h>
 #include <forge/lexer.h>
 #include <forge/str.h>
+#include <forge/cstr.h>
 #include <forge/rdln.h>
 #include <forge/cmd.h>
 #include <forge/err.h>
@@ -80,18 +81,18 @@ run(str_array *input_lines, str_array *user_lines)
         if (g_config.fp) {
                 const char *basename = forge_io_basename(g_config.fp);
 
-                char *cc_cmd = forge_str_builder("cc -c ", g_config.fp, " -o /tmp/", basename, ".o", NULL);
+                char *cc_cmd = forge_cstr_builder("cc -c ", g_config.fp, " -o /tmp/", basename, ".o", NULL);
                 CMD(cc_cmd, {
                         free(cc_cmd);
                         goto bad;
                 });
-                char *ar_cmd = forge_str_builder("ar rcs /tmp/lib", basename, ".a /tmp/", basename, ".o", NULL);
+                char *ar_cmd = forge_cstr_builder("ar rcs /tmp/lib", basename, ".a /tmp/", basename, ".o", NULL);
                 CMD(ar_cmd, {
                         free(cc_cmd);
                         free(ar_cmd);
                         goto bad;
                 });
-                char *cc2_cmd = forge_str_builder("cc " TMP_FILEPATH " -o /tmp/ViLe_bin_output -L/tmp/ -l", basename, NULL);
+                char *cc2_cmd = forge_cstr_builder("cc " TMP_FILEPATH " -o /tmp/ViLe_bin_output -L/tmp/ -l", basename, NULL);
                 CMD(cc2_cmd, {
                         free(cc2_cmd);
                         free(cc_cmd);
@@ -103,7 +104,7 @@ run(str_array *input_lines, str_array *user_lines)
                 free(cc_cmd);
                 free(ar_cmd);
         } else {
-                char *cc_cmd = forge_str_builder("cc " TMP_FILEPATH " -o /tmp/ViLe_bin_output", NULL);
+                char *cc_cmd = forge_cstr_builder("cc " TMP_FILEPATH " -o /tmp/ViLe_bin_output", NULL);
                 CMD(cc_cmd, {
                         free(cc_cmd);
                         goto bad;
@@ -166,7 +167,7 @@ main(int argc, char **argv)
                         } else if (!strcmp(input, ":i")) {
                                 free(input);
                                 input = forge_rdln("#include ");
-                                dyn_array_append(input_lines, forge_str_builder("#include ", input, NULL));
+                                dyn_array_append(input_lines, forge_cstr_builder("#include ", input, NULL));
                                 free(input);
                         } else if (!strcmp(input, ":q") || !strcmp(input, ":quit")) {
                                 free(input);
