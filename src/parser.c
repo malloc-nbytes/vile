@@ -33,10 +33,12 @@ parse_function(forge_lexer *lexer)
         }
 
         if (!strcmp(forge_lexer_peek(lexer, 1)->lx, "main")) {
-                while (LP(lexer)->ty != FORGE_TOKEN_TYPE_LEFT_CURLY)
-                        forge_lexer_discard(lexer);
-                skipblk(lexer);
-                return NULL;
+                forge_err_wargs("file `%s` contains an entrypoint, this needs to be removed.", lexer->fp);
+                //while (LP(lexer)->ty != FORGE_TOKEN_TYPE_LEFT_CURLY) {
+                //        forge_lexer_discard(lexer);
+                //}
+                //skipblk(lexer);
+                //return NULL;
         }
 
         forge_str line = forge_str_from("extern ");

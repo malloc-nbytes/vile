@@ -14,6 +14,7 @@
 #include <forge/err.h>
 
 #include "parser.h"
+#include "flags.h"
 
 #define HELP  ":h"
 #define HELP2 ":help"
@@ -29,9 +30,11 @@
 struct {
         uint32_t flags;
         char *fp;
+        str_array include_dirs;
 } g_config = {
         .flags = 0x0000,
         .fp = NULL,
+        .include_dirs = dyn_array_empty(str_array),
 };
 
 static const char *g_kwds[] = FORGE_LEXER_C_KEYWORDS;
@@ -64,6 +67,17 @@ lex_file(const char *fp)
         return lexer;
 }
 
+forge_str
+get_include_dirs(void)
+{
+        forge_str include_dirs = forge_str_create();
+        for (size_t i = 0; i < g_config.include_dirs.len; ++i) {
+                forge_str_concat(&include_dirs, " -I");
+                forge_str_concat(&include_dirs, g_config.include_dirs.data[i]);
+        }
+        return include_dirs;
+}
+
 void
 run(str_array *input_lines, str_array *user_lines)
 {
@@ -78,10 +92,13 @@ run(str_array *input_lines, str_array *user_lines)
         forge_io_create_file(TMP_FILEPATH, 1);
         forge_io_write_lines(TMP_FILEPATH, (const char **)final_lines.data, final_lines.len);
 
+        forge_str include_dirs = get_include_dirs();
+
         if (g_config.fp) {
                 const char *basename = forge_io_basename(g_config.fp);
 
-                char *cc_cmd = forge_cstr_builder("cc -c ", g_config.fp, " -o /tmp/", basename, ".o", NULL);
+                char *cc_cmd = forge_cstr_builder("cc -fPIC -c ", g_config.fp, " -o /tmp/", basename, ".o",
+                                                  include_dirs.len > 0 ? include_dirs.data : "", NULL);
                 CMD(cc_cmd, {
                         free(cc_cmd);
                         goto bad;
@@ -104,7 +121,8 @@ run(str_array *input_lines, str_array *user_lines)
                 free(cc_cmd);
                 free(ar_cmd);
         } else {
-                char *cc_cmd = forge_cstr_builder("cc " TMP_FILEPATH " -o /tmp/ViLe_bin_output", NULL);
+                char *cc_cmd = forge_cstr_builder("cc " TMP_FILEPATH " -o /tmp/ViLe_bin_output",
+                                                  include_dirs.len > 0 ? include_dirs.data : "", NULL);
                 CMD(cc_cmd, {
                         free(cc_cmd);
                         goto bad;
@@ -119,7 +137,17 @@ bad:
         printf("aborting...\n");
 
 cleanup:
+        forge_str_destroy(&include_dirs);
         dyn_array_free(final_lines);
+}
+
+char *
+arg_expecteq(forge_arg *arg, const char *option)
+{
+        if (!arg->eq) {
+                forge_err_wargs("option `%s` requires an equals (=)", option);
+        }
+        return strdup(arg->eq);
 }
 
 void
@@ -127,7 +155,17 @@ handle_args(forge_arg *it)
 {
         while (it) {
                 if (!it->h) {
+                        if (g_config.fp) {
+                                forge_err("Only zero or one file is supported at the moment.");
+                        }
                         g_config.fp = forge_io_resolve_absolute_path(it->s);
+                }
+                else if (it->h == 1) {
+                        if (it->s[0] == FLAG_1HY_INCLUDE) {
+                                char op[] = {FLAG_1HY_INCLUDE, 0};
+                                dyn_array_append(g_config.include_dirs,
+                                                 forge_io_resolve_absolute_path(arg_expecteq(it, op)));
+                        }
                 }
                 it = it->n;
         }
