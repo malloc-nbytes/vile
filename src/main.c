@@ -12,6 +12,7 @@
 #include <forge/rdln.h>
 #include <forge/cmd.h>
 #include <forge/err.h>
+#include <forge/ctrl.h>
 
 #include "parser.h"
 #include "flags.h"
@@ -25,7 +26,15 @@
 
 #define TMP_FILEPATH "/tmp/.vile.c"
 
-#define CMD(c, b) if (!cmd(c)) b
+#define CMD(c, b)                               \
+        do {                                    \
+                int __res = cmd(c);             \
+                if (!__res) {                   \
+                        b;                      \
+                }                               \
+                CURSOR_UP(1)                    \
+                forge_ctrl_clear_line();        \
+        } while (0)
 
 struct {
         uint32_t flags;
@@ -109,7 +118,7 @@ run(str_array *input_lines, str_array *user_lines)
                         free(ar_cmd);
                         goto bad;
                 });
-                char *cc2_cmd = forge_cstr_builder("cc " TMP_FILEPATH " -o /tmp/ViLe_bin_output -L/tmp/ -l", basename, NULL);
+                char *cc2_cmd = forge_cstr_builder("cc " TMP_FILEPATH " -o /tmp/vile_bin_output -L/tmp/ -l", basename, NULL);
                 CMD(cc2_cmd, {
                         free(cc2_cmd);
                         free(cc_cmd);
@@ -121,7 +130,7 @@ run(str_array *input_lines, str_array *user_lines)
                 free(cc_cmd);
                 free(ar_cmd);
         } else {
-                char *cc_cmd = forge_cstr_builder("cc " TMP_FILEPATH " -o /tmp/ViLe_bin_output",
+                char *cc_cmd = forge_cstr_builder("cc " TMP_FILEPATH " -o /tmp/vile_bin_output",
                                                   include_dirs.len > 0 ? include_dirs.data : "", NULL);
                 CMD(cc_cmd, {
                         free(cc_cmd);
@@ -130,7 +139,7 @@ run(str_array *input_lines, str_array *user_lines)
                 free(cc_cmd);
         }
 
-        CMD("/tmp/ViLe_bin_output", goto bad);
+        if (!cmd("/tmp/vile_bin_output")) goto bad;
         goto cleanup;
 
 bad:
@@ -198,7 +207,7 @@ main(int argc, char **argv)
                 dyn_array_append(user_lines, strdup("int main(void) {"));
 
                 while (1) {
-                        char *input = forge_rdln("ViLe: ");
+                        char *input = forge_rdln("vile: ");
                         if (!strcmp(input, ":r") || !strcmp(input, ":run")) {
                                 free(input);
                                 break;
