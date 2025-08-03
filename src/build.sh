@@ -8,5 +8,6 @@ files=$(earl \
             -O 'List::to_str(System::get_all_files_by_ext(".", "c").filter(!= "./test.c"));')
 cc="cc"
 name="vile"
+flags=""
 
-$cc -o $name $files -Iinclude/ $(forge lib)
+$cc $flags -o $name $files -Iinclude/ $(forge lib)
