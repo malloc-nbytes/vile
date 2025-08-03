@@ -115,7 +115,8 @@ parse_include(forge_lexer *lexer)
 }
 
 int
-is_struct(const forge_lexer *lexer)
+is_structure(const forge_lexer *lexer,
+             const char        *structure_type)
 {
         forge_token *t1 = forge_lexer_peek(lexer, 0);
         forge_token *t2 = forge_lexer_peek(lexer, 1);
@@ -125,8 +126,8 @@ is_struct(const forge_lexer *lexer)
                 return 0;
         }
 
-        return (!strcmp(t1->lx, "typedef") || !strcmp(t1->lx, "struct"))
-                && (!strcmp(t2->lx, "struct") || t2->ty == FORGE_TOKEN_TYPE_IDENTIFIER)
+        return (!strcmp(t1->lx, "typedef") || !strcmp(t1->lx, structure_type))
+                && (!strcmp(t2->lx, structure_type) || t2->ty == FORGE_TOKEN_TYPE_IDENTIFIER)
                 && ((!t3 || t3->ty != FORGE_TOKEN_TYPE_IDENTIFIER) || (t3 && t3->ty == FORGE_TOKEN_TYPE_IDENTIFIER));
 }
 
@@ -147,7 +148,11 @@ parse_stmt(forge_lexer *lexer)
         }
 
         // Structure
-        if (is_struct(lexer)) {
+        if (is_structure(lexer, "struct")) {
+                return parse_struct(lexer);
+        } else if (is_structure(lexer, "enum")) {
+                return parse_struct(lexer);
+        } else if (is_structure(lexer, "union")) {
                 return parse_struct(lexer);
         }
 
